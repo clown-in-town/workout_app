@@ -8,6 +8,7 @@ import {
   StatusBar,
   TextInput,
   FlatList,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -75,7 +76,7 @@ function FilterChips<T extends string>({
   );
 }
 
-function ExerciseListItem({ item }: { item: Exercise }) {
+function ExerciseListItem({ item, onPress }: { item: Exercise; onPress: () => void }) {
   const diffColor =
     item.difficulty === 'Avanzado'
       ? Colors.danger
@@ -84,7 +85,7 @@ function ExerciseListItem({ item }: { item: Exercise }) {
       : Colors.success;
 
   return (
-    <TouchableOpacity style={styles.exerciseItem} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.exerciseItem} activeOpacity={0.8} onPress={onPress}>
       <View style={styles.exerciseIcon}>
         <Text style={styles.exerciseEmoji}>{item.emoji}</Text>
       </View>
@@ -102,10 +103,102 @@ function ExerciseListItem({ item }: { item: Exercise }) {
   );
 }
 
+function ExerciseDetailModal({
+  exercise,
+  visible,
+  onClose,
+}: {
+  exercise: Exercise | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  if (!exercise) return null;
+
+  const diffColor =
+    exercise.difficulty === 'Avanzado'
+      ? Colors.danger
+      : exercise.difficulty === 'Intermedio'
+      ? Colors.warning
+      : Colors.success;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={dm.overlay}>
+        <View style={dm.sheet}>
+          <View style={dm.handle} />
+          
+          <View style={dm.header}>
+            <View style={dm.emojiContainer}>
+              <Text style={dm.emoji}>{exercise.emoji}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dm.name}>{exercise.name}</Text>
+              <View style={dm.metaRow}>
+                <Text style={dm.muscleText}>{exercise.muscle}</Text>
+                <Text style={dm.bullet}>•</Text>
+                <Text style={dm.equipText}>{exercise.equipment}</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={dm.closeBtn}>
+              <Ionicons name="close" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={dm.scroll} showsVerticalScrollIndicator={false}>
+            {/* Dificultad */}
+            <View style={dm.levelRow}>
+              <Text style={dm.sectionTitle}>Dificultad</Text>
+              <View style={[dm.diffBadge, { backgroundColor: diffColor + '15' }]}>
+                <Text style={[dm.diffText, { color: diffColor }]}>{exercise.difficulty}</Text>
+              </View>
+            </View>
+
+            {/* Músculos secundarios */}
+            {exercise.secondaryMuscles && exercise.secondaryMuscles.length > 0 && (
+              <View style={dm.section}>
+                <Text style={dm.sectionTitle}>Músculos Secundarios</Text>
+                <View style={dm.tagsRow}>
+                  {exercise.secondaryMuscles.map((m, idx) => (
+                    <View key={idx} style={dm.secondaryTag}>
+                      <Text style={dm.secondaryTagText}>{m}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Ejecución */}
+            <View style={dm.section}>
+              <Text style={dm.sectionTitle}>Instrucciones de Ejecución</Text>
+              <Text style={dm.description}>{exercise.description}</Text>
+            </View>
+
+            {/* Beneficios */}
+            {exercise.benefits && exercise.benefits.length > 0 && (
+              <View style={dm.section}>
+                <Text style={dm.sectionTitle}>Beneficios Clave</Text>
+                {exercise.benefits.map((b, idx) => (
+                  <View key={idx} style={dm.benefitRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.accent} />
+                    <Text style={dm.benefitText}>{b}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ExercisesScreen() {
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<string>('Todos');
   const [selectedEquip, setSelectedEquip] = useState<string>('Todo');
+  const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
 
   const filtered = useMemo(() => {
     return mockExercises.filter((ex) => {
@@ -151,11 +244,23 @@ export default function ExercisesScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ExerciseListItem item={item} />}
+          renderItem={({ item }) => (
+            <ExerciseListItem
+              item={item}
+              onPress={() => setActiveExercise(item)}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Exercise Detail Modal */}
+      <ExerciseDetailModal
+        exercise={activeExercise}
+        visible={activeExercise !== null}
+        onClose={() => setActiveExercise(null)}
+      />
     </View>
   );
 }
@@ -222,8 +327,44 @@ const styles = StyleSheet.create({
   diffText: { fontSize: 11, fontWeight: '700' },
 
   // Empty state
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 60 },
   emptyEmoji: { fontSize: 48 },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
   emptyText: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' },
+});
+
+// Detail Modal Styles
+const dm = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '88%' },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.surfaceBorder, alignSelf: 'center', marginBottom: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
+  emojiContainer: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: Colors.surfaceElevated,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emoji: { fontSize: 28 },
+  name: { fontSize: 18, fontWeight: '850', color: Colors.text, letterSpacing: -0.5 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  muscleText: { fontSize: 13, fontWeight: '700', color: Colors.accent },
+  bullet: { fontSize: 13, color: Colors.textMuted },
+  equipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  
+  scroll: { flex: 1 },
+  levelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, backgroundColor: Colors.surfaceElevated, padding: 12, borderRadius: 14 },
+  diffBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  diffText: { fontSize: 12, fontWeight: '800' },
+
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  secondaryTag: { backgroundColor: Colors.surfaceElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: Colors.surfaceBorder },
+  secondaryTagText: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  
+  description: { fontSize: 14, color: Colors.text, lineHeight: 22, fontWeight: '500' },
+  
+  benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+  benefitText: { fontSize: 13.5, color: Colors.text, flex: 1, lineHeight: 18, fontWeight: '500' },
 });
